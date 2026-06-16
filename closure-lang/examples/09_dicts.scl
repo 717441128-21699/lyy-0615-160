@@ -1,0 +1,103 @@
+// ============================================================
+// 09_dicts.scl —— 字典: 键值对象 / 按名取值 / 键遍历 / 合并
+// ============================================================
+
+print "--- 字典字面量与基础读取 ---";
+
+let alice = {
+    "name": "Alice",
+    "age": 30,
+    "city": "上海",
+    "is_student": false,
+};
+print "alice: " + alice;
+print "alice[\"name\"]: " + alice["name"];
+print "alice[\"age\"]: " + alice["age"];
+print "alice[\"nonexistent\"]: " + alice["nonexistent"];  // nil
+
+// 下标赋值 (修改/新增)
+alice["age"] = 31;
+alice["email"] = "alice@example.com";
+print "修改后 alice: " + alice;
+
+// 数字做键也可以
+print "";
+print "--- 数字键 ---";
+let map = {1: "一", 2: "二", 3: "三"};
+print "map[2] = " + map[2];
+
+// ------------------------------------------------------------
+print "";
+print "--- has / keys / del_key 内置函数 ---";
+
+print "has(alice, \"email\"): " + has(alice, "email");
+print "has(alice, \"phone\"): " + has(alice, "phone");
+print "alice 的键: " + keys(alice);
+
+let old_email = del_key(alice, "email");
+print "删除 email 后: " + alice;
+print "被删掉的 email 值: " + old_email;
+
+// ------------------------------------------------------------
+print "";
+print "--- 任务: 按名字取值并打印员工信息 ---";
+
+let employees = [
+    {"id": 1, "name": "张三", "dept": "研发部", "salary": 15000},
+    {"id": 2, "name": "李四", "dept": "产品部", "salary": 18000},
+    {"id": 3, "name": "王五", "dept": "设计部", "salary": 16000},
+    {"id": 4, "name": "赵六", "dept": "研发部", "salary": 20000},
+];
+
+// 按名字查找函数
+fn find_by_name(list, target_name) {
+    for (let i = 0; i < len(list); i = i + 1) {
+        let emp = list[i];
+        if (emp["name"] == target_name) {
+            return emp;
+        }
+    }
+    return nil;
+}
+
+print "查找 李四:";
+let ls = find_by_name(employees, "李四");
+if (ls) {
+    print "  工号: " + ls["id"];
+    print "  姓名: " + ls["name"];
+    print "  部门: " + ls["dept"];
+    print "  月薪: " + ls["salary"];
+} else {
+    print "  没找到";
+}
+
+// ------------------------------------------------------------
+print "";
+print "--- 字典合并 + 按值比较 ---";
+
+let defaults = {"host": "localhost", "port": 8080, "debug": false};
+let overrides = {"port": 9090, "debug": true};
+let config = defaults + overrides;
+print "defaults: " + defaults;
+print "overrides: " + overrides;
+print "合并后 config: " + config;
+
+print "";
+print "字典相等比较: " + ({"a": 1} == {"a": 1});
+
+// ------------------------------------------------------------
+print "";
+print "--- 任务: 统计研发部总薪资 ---";
+
+let total_salary = 0;
+let rnd_count = 0;
+let emp_keys = keys(employees[0]);  // 预取键列表 (仅作演示)
+
+for (let i = 0; i < len(employees); i = i + 1) {
+    let e = employees[i];
+    if (e["dept"] == "研发部") {
+        total_salary = total_salary + e["salary"];
+        rnd_count = rnd_count + 1;
+    }
+}
+print "研发部共 " + rnd_count + " 人, 总薪资 " + total_salary;

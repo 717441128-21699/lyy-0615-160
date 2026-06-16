@@ -1,0 +1,184 @@
+// ============================================================
+// 10_closures_with_collections.scl —— 闭包维护数组/字典状态 + 多闭包共享同一份状态
+//
+// 关键机制:
+//   - 数组 list 和字典 dict 都是可变的 Python 对象, 按引用传递
+//   - 多个闭包捕获同一个 Environment.values 中的同一个 cell
+//     → 它们读写的是同一个 list/dict 对象 → 状态天然共享
+// ============================================================
+
+print "=== 演示 1: 闭包里维护一个数组状态 (事件日志) ===";
+print "";
+
+fn make_event_logger() {
+    let events = [];            // 被捕获的数组 —— 所有返回的闭包共享这一个 list
+    return {
+        "log": fn (msg) {
+            push(events, {"t": now(), "msg": msg});  // 追加新事件
+            return len(events);
+        },
+        "get_all": fn () {
+            return events;          // 返回整个数组
+        },
+        "count": fn () {
+            return len(events);
+        },
+        "clear": fn () {
+            // 清空原数组 (不能重新 let, 否则失去共享)
+            while (len(events) > 0) {
+                pop(events);
+            }
+        },
+    };
+}
+
+// 简化版 (无对象, 返回一个派发闭包, 这样就不用字典做方法表)
+fn make_simple_logger() {
+    let events = [];
+    return fn (cmd, arg) {
+        if (cmd == "log") {
+            push(events, arg);
+            return len(events);
+        }
+        if (cmd == "count") {
+            return len(events);
+        }
+        if (cmd == "all") {
+            return events;
+        }
+        if (cmd == "clear") {
+            while (len(events) > 0) { pop(events); }
+            return 0;
+        }
+        return nil;
+    };
+}
+
+// 补充一个时间戳生成 (伪时间戳)
+fn now() {
+    // 简化: 返回一个计数器
+    let t = 0;
+    if (has(globals, "_t")) {
+        t = globals["_t"];
+    }
+    globals["_t"] = t + 1;
+    return t;
+}
+
+// 一个"全局"字典, 供 now() 存取
+let globals = {"_t": 0};
+
+// 使用简化派发闭包
+let logger = make_simple_logger();
+print "初始化, count = " + logger("count", nil);
+
+logger("log", "用户登录");
+logger("log", "点击主页");
+logger("log", "添加购物车");
+print "三次操作后 count = " + logger("count", nil);
+print "所有事件: " + logger("all", nil);
+
+// 现在演示: 闭包的状态是"活"的, 多次调用持续累积
+print "";
+print "继续调用 logger:";
+logger("log", "提交订单");
+logger("log", "支付成功");
+print "最新 count = " + logger("count", nil);
+print "完整事件: " + logger("all", nil);
+
+logger("clear", nil);
+print "清空空后 count = " + logger("count", nil);
+
+// ------------------------------------------------------------
+print "";
+print "=== 演示 2: 闭包里维护一个字典状态 (计数器聚合) ===";
+print "";
+
+fn make_category_counter() {
+    let counts = {};       // 被捕获的字典 —— key -> 次数
+    return fn (category) {
+        if (has(counts, category)) {
+            counts[category] = counts[category] + 1;
+        } else {
+            counts[category] = 1;
+        }
+        return counts;        // 返回整个统计字典, 让调用方看全貌
+    };
+}
+
+let counter = make_category_counter();
+print "用户浏览记录:";
+print "  浏览 '手机' → " + counter("手机");
+print "  浏览 '手机' → " + counter("手机");
+print "  浏览 '电脑' → " + counter("电脑");
+print "  浏览 '书籍' → " + counter("书籍");
+print "  浏览 '手机' → " + counter("手机");
+print "  浏览 '电脑' → " + counter("电脑");
+print "";
+print "最终统计: " + counter("none");   // 再传一个不存在的类别, 返回完整字典
+
+// ------------------------------------------------------------
+print "";
+print "=== 演示 3: 两个闭包共享同一份状态 (一个改, 另一个能读到) ===";
+print "";
+
+// 经典模式: 一个工厂函数返回 **两个独立的闭包对象**,
+// 但它们的 closure_env 指向 **同一个** Environment,
+// 因此它们读写的是 **同一个** 数组/字典 cell。
+fn make_shared_todo_list() {
+    let todos = [];       // 这是两个闭包共享的数组
+
+    // 返回一个二元组 [adder, viewer]
+    // 用数组把两个闭包包起来, 调用方取下标 0 和 1 即可
+    let adder = fn (title) {
+        push(todos, {"title": title, "done": false});
+        return len(todos);
+    };
+
+    let viewer = fn () {
+        return todos;
+    };
+
+    let completer = fn (index) {
+        if (index < 0 or index >= len(todos)) {
+            return "下标越界";
+        }
+        todos[index]["done"] = true;
+        return todos[index];
+    };
+
+    // 返回一个数组, 三个闭包都捕获同一个 todos
+    return [adder, viewer, completer];
+}
+
+let handlers = make_shared_todo_list();
+let add_todo    = handlers[0];
+let view_todos  = handlers[1];
+let complete    = handlers[2];
+
+print "刚创建, 列表: " + view_todos();
+
+print "";
+print "调用 add_todo() 添加任务:";
+add_todo("学习闭包");
+add_todo("写解释器");
+add_todo("测试示例");
+print "当前列表: " + view_todos();
+
+print "";
+print "调用 complete(1) 把第二个任务标记完成:";
+complete(1);
+print "更新后的列表: " + view_todos();
+
+print "";
+print "再添加一个新任务:";
+add_todo("写文档");
+print "最终列表: " + view_todos();
+
+print "";
+print "=== 原理 ===";
+print "";
+print "adder / viewer / completer 三个闭包的 closure_env 都指向";
+print "make_shared_todo_list 的活动 Environment, 该 Environment.values['todos']";
+print "存的是同一个 Python list 对象的引用 → 任何一个闭包修改它,";
+print "另外两个闭包都能看到变化。这就是 '共享状态' 的本质。";

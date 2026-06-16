@@ -1,0 +1,88 @@
+// ============================================================
+// 08_arrays.scl —— 数组基础: 字面量 / 下标读写 / 遍历 / 统计字符串长度
+// ============================================================
+
+print "--- 数组字面量与基础读取 ---";
+
+let nums = [10, 20, 30, 40, 50];
+print "数组: " + nums;
+print "长度: " + len(nums);
+print "第一个元素 nums[0]: " + nums[0];
+print "最后一个元素 nums[-1]: " + nums[-1];
+print "倒数第二个 nums[-2]: " + nums[-2];
+
+// 下标赋值
+nums[0] = 100;
+nums[-1] = 500;
+print "修改后: " + nums;
+
+// 越界测试 (注释掉, 跑示例时不希望出错)
+// nums[999] = 666;
+
+// ------------------------------------------------------------
+print "";
+print "--- 数组拼接 + push/pop/insert ---";
+
+let a = [1, 2, 3];
+let b = [4, 5, 6];
+print "a + b = " + (a + b);
+
+let stack = [];
+push(stack, "A");
+push(stack, "B");
+push(stack, "C");
+print "push 后 stack: " + stack;
+print "pop: " + pop(stack);
+print "pop 后: " + stack;
+
+let arr = [1, 2, 4];
+insert(arr, 2, 3);  // 在 index 2 的位置插入 3
+print "insert 后: " + arr;
+
+// ------------------------------------------------------------
+print "";
+print "--- 任务: 用 for 循环统计一组字符串长度 ---";
+
+let words = ["apple", "banana", "cherry", "date", "elderberry"];
+let lengths = [];
+print "单词列表: " + words;
+print "";
+
+for (let i = 0; i < len(words); i = i + 1) {
+    let w = words[i];
+    let l = len(w);
+    push(lengths, l);
+    print "  " + w + " 的长度是 " + l;
+}
+print "";
+print "统计结果: " + lengths;
+
+// 求总长度 / 平均
+let total = 0;
+for (let i = 0; i < len(lengths); i = i + 1) {
+    total = total + lengths[i];
+}
+print "总长度: " + total;
+print "平均长度: " + (total / len(lengths));
+
+// ------------------------------------------------------------
+print "";
+print "--- 空数组 ---";
+let empty = [];
+print "空数组: " + empty;
+print "空数组 len: " + len(empty);
+print "空数组是否为真: " + (empty or "false");
+
+// ------------------------------------------------------------
+print "";
+print "--- 数组比较: 按值比较 ---";
+print "[1,2,3] == [1,2,3]: " + ([1, 2, 3] == [1, 2, 3]);   // true
+print "[1,2,3] == [1,2]: " + ([1, 2, 3] == [1, 2]);       // false
+
+// 嵌套数组
+print "";
+print "--- 嵌套数组 ---";
+let matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+print "matrix: " + matrix;
+print "matrix[0]: " + matrix[0];
+print "matrix[1][2]: " + matrix[1][2];   // 6

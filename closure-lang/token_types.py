@@ -25,6 +25,8 @@ class TokenType(Enum):
     RIGHT_PAREN = auto()
     LEFT_BRACE = auto()
     RIGHT_BRACE = auto()
+    LEFT_BRACKET = auto()
+    RIGHT_BRACKET = auto()
     COMMA = auto()
     DOT = auto()
     SEMICOLON = auto()

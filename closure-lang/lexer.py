@@ -143,6 +143,10 @@ class Lexer:
                 self.advance(); self.add_token(TokenType.LEFT_BRACE, column=start_col)
             elif ch == '}':
                 self.advance(); self.add_token(TokenType.RIGHT_BRACE, column=start_col)
+            elif ch == '[':
+                self.advance(); self.add_token(TokenType.LEFT_BRACKET, column=start_col)
+            elif ch == ']':
+                self.advance(); self.add_token(TokenType.RIGHT_BRACKET, column=start_col)
             elif ch == ',':
                 self.advance(); self.add_token(TokenType.COMMA, column=start_col)
             elif ch == '.':

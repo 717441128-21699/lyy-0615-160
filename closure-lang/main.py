@@ -1,111 +1,129 @@
 import sys
 import os
 
-# 允许从任何目录运行, 保证包导入路径可用
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from lexer import Lexer, LexerError
-from parser import Parser, ParseError
-from interpreter import Interpreter, RuntimeError
+from lexer import Lexer
+from parser import Parser
+from interpreter import Interpreter
+from errors import ScriptError, LexerError, ParseError, RuntimeError
+from ast_nodes import ExpressionStatement
 
 
-def run_source(source: str, interpreter: Interpreter = None) -> Interpreter:
-    """运行一段源代码, 若未提供 interpreter 则创建一个全新的 (带全局内置函数)。"""
+def run_source(source: str, interpreter: Interpreter = None, source_path: str = None) -> Interpreter:
+    """运行一段源代码。所有 ScriptError 异常会带上 source_path 后抛出。"""
     if interpreter is None:
         interpreter = Interpreter()
-    tokens = Lexer(source).tokenize()
-    program = Parser(tokens).parse()
-    interpreter.interpret(program)
+    try:
+        tokens = Lexer(source).tokenize()
+        program = Parser(tokens).parse()
+        interpreter.interpret(program)
+    except ScriptError as e:
+        if source_path and e.source_path is None:
+            e.source_path = source_path
+        raise
     return interpreter
 
 
+def _print_error(err: ScriptError):
+    """统一格式化输出错误信息 (不含 Python 堆栈)。"""
+    print(err.format_error(), file=sys.stderr)
+
+
 def run_file(path: str) -> int:
-    """执行一个脚本文件。"""
+    """执行一个脚本文件，发生错误只打印脚本错误信息，返回非零退出码。"""
     try:
         with open(path, 'r', encoding='utf-8') as f:
             source = f.read()
     except FileNotFoundError:
         print(f"错误: 文件未找到: {path}", file=sys.stderr)
         return 1
-    try:
-        run_source(source)
-    except (LexerError, ParseError, RuntimeError) as e:
-        print(str(e), file=sys.stderr)
+    except OSError as e:
+        print(f"错误: 无法读取文件: {e}", file=sys.stderr)
         return 1
-    return 0
+    try:
+        run_source(source, source_path=path)
+        return 0
+    except ScriptError as e:
+        _print_error(e)
+        return 1
 
 
 def run_repl():
-    """交互式 REPL。支持多行输入: 以空行结束一条语句块。"""
-    print("ClosureLang REPL (输入 .exit 退出, 多行用 ; 或空行结束)")
+    """
+    交互式 REPL:
+      - 单行表达式自动回显结果值
+      - 多行结构 (fn / if / while / for / { ... }) 会持续收集输入
+        直到语法结构完整、括号配对后才执行
+      - 所有错误只显示脚本错误格式, 不影响下一条输入
+    """
+    print("ClosureLang REPL (输入 .exit 退出)")
     print("=" * 56)
     interpreter = Interpreter()
     buf = ""
-    prompt = ">>> "
+
     while True:
         try:
+            prompt = ">>> " if not buf else "... "
             line = input(prompt)
         except (EOFError, KeyboardInterrupt):
             print()
             return
 
-        if line.strip() == ".exit":
+        stripped = line.strip()
+        if stripped == ".exit":
             return
+        if not stripped and not buf:
+            continue
 
         buf += line + "\n"
 
-        # 如果当前缓冲在语法上看起来 "完整", 就尝试执行
-        if not _looks_incomplete(buf):
+        # 如果缓冲语法上完整 (括号配对), 就尝试解析执行
+        if _is_complete(buf):
             try:
                 tokens = Lexer(buf).tokenize()
                 program = Parser(tokens).parse()
-            except (LexerError, ParseError) as e:
-                # 可能只是还没输完: 如果结尾是 { ( 或逗号, 继续输入
-                if _could_continue(buf, line):
-                    prompt = "... "
+            except ScriptError as e:
+                # 可能只是还没输完: 如果缓冲明显不完整, 继续收集
+                if _looks_definitely_incomplete(buf):
                     continue
-                print(str(e), file=sys.stderr)
+                _print_error(e)
                 buf = ""
-                prompt = ">>> "
                 continue
 
             try:
-                # 如果最后是单个表达式, 额外打印其值
-                last = None
+                # 判断最后一条语句是否是表达式语句 → 自动回显值
+                last_expr_val = None
+                last_is_expr = False
                 if program.statements:
-                    import ast_nodes as _an
                     last_stmt = program.statements[-1]
-                    if isinstance(last_stmt, _an.ExpressionStatement):
-                        last = last_stmt.expression
+                    if isinstance(last_stmt, ExpressionStatement):
+                        last_is_expr = True
+
                 interpreter.interpret(program)
-                if last is not None:
-                    # 再次对同一表达式求值用于打印 (副作用会重复, 但 REPL 可以接受)
+
+                if last_is_expr:
+                    # 单独对最后一个表达式求值以回显 (副作用会再次执行, 可接受)
                     try:
                         tokens2 = Lexer(buf).tokenize()
                         prog2 = Parser(tokens2).parse()
-                        import ast_nodes as _an2
-                        if prog2.statements and isinstance(
-                            prog2.statements[-1], _an2.ExpressionStatement
-                        ):
-                            # 通过临时 "print _" 机制实现: 简单直接用内部 _eval 不方便, 这里用 print
-                            pass
+                        if prog2.statements:
+                            ls = prog2.statements[-1]
+                            if isinstance(ls, ExpressionStatement):
+                                val = interpreter._evaluate(ls.expression)
+                                print(interpreter._stringify(val))
                     except Exception:
                         pass
-            except (LexerError, ParseError, RuntimeError) as e:
-                print(str(e), file=sys.stderr)
+            except ScriptError as e:
+                _print_error(e)
             buf = ""
-            prompt = ">>> "
-        else:
-            prompt = "... "
 
 
-def _looks_incomplete(src: str) -> bool:
-    stripped = src.rstrip()
-    if not stripped:
-        return False
-    # 结尾是 { ( 等开启符号, 说明还没写完
-    openers = ('{', '(', '[', ',')
-    closer_map = {'{': 0, '(': 0, '[': 0}
+def _is_complete(src: str) -> bool:
+    """简单的括号配对检测, 判断输入是否完整。"""
+    open_map = {'(': ')', '[': ']', '{': '}'}
+    close_map = {v: k for k, v in open_map.items()}
+    stack = []
     in_str = None
     i = 0
     while i < len(src):
@@ -122,20 +140,26 @@ def _looks_incomplete(src: str) -> bool:
             in_str = ch
             i += 1
             continue
-        if ch == '{': closer_map['{'] += 1
-        elif ch == '}': closer_map['{'] -= 1
-        elif ch == '(': closer_map['('] += 1
-        elif ch == ')': closer_map['('] -= 1
-        elif ch == '[': closer_map['['] += 1
-        elif ch == ']': closer_map['['] -= 1
+        if ch in open_map:
+            stack.append(ch)
+        elif ch in close_map:
+            if not stack or stack[-1] != close_map[ch]:
+                # 不匹配就认为无效, 返回 True 让解析器报错
+                return True
+            stack.pop()
         i += 1
     if in_str is not None:
-        return True
-    return any(v > 0 for v in closer_map.values())
+        return False
+    return len(stack) == 0
 
 
-def _could_continue(buf: str, last_line: str) -> bool:
-    return _looks_incomplete(buf) or last_line.rstrip().endswith(('{', '(', ',', '\\'))
+def _looks_definitely_incomplete(src: str) -> bool:
+    """启发式: 如果结尾是开启符号/逗号/反斜杠, 就继续收集。"""
+    stripped = src.rstrip()
+    if not stripped:
+        return False
+    ends = stripped[-1]
+    return ends in ('{', '(', '[', ',', '\\') or ends in ('+', '-', '*', '/', '%', '=', '<', '>', '!')
 
 
 BANNER = r"""
@@ -147,7 +171,7 @@ BANNER = r"""
   \_____|_|\___/ \___/|___/\__|\__,_|_|    |______\__,_|_| |_|\__, |
                                                                __/ |
                                                               |___/ 
-  支持 词法作用域 · 闭包捕获 · 环境逃逸 · Pratt 解析
+  支持 词法作用域 · 闭包捕获 · 环境逃逸 · Pratt 解析 · 数组 · 字典
   用法: python main.py <script.scl>      # 执行脚本
         python main.py                   # 进入 REPL
 """
