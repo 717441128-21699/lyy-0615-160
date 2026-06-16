@@ -1,4 +1,5 @@
 from token_types import Token, TokenType
+from errors import ParseError
 from ast_nodes import (
     Program, NumberLiteral, StringLiteral, BooleanLiteral, NilLiteral,
     Identifier, Assignment, VariableDeclaration, FunctionDeclaration,

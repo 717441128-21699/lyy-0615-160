@@ -1,11 +1,5 @@
 from token_types import Token, TokenType, KEYWORDS
-
-
-class LexerError(Exception):
-    def __init__(self, message: str, line: int, column: int):
-        super().__init__(f"[行 {line}, 列 {column}] 词法错误: {message}")
-        self.line = line
-        self.column = column
+from errors import LexerError
 
 
 class Lexer:
