@@ -19,6 +19,7 @@ class TokenType(Enum):
     FALSE = auto()
     NIL = auto()
     PRINT = auto()
+    IMPORT = auto()
 
     # 单字符符号
     LEFT_PAREN = auto()
@@ -80,4 +81,5 @@ KEYWORDS = {
     'print': TokenType.PRINT,
     'and': TokenType.AND,
     'or': TokenType.OR,
+    'import': TokenType.IMPORT,
 }

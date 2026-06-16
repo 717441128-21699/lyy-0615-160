@@ -10,19 +10,27 @@ from errors import ScriptError, LexerError, ParseError, RuntimeError
 from ast_nodes import ExpressionStatement
 
 
-def run_source(source: str, interpreter: Interpreter = None, source_path: str = None) -> Interpreter:
-    """运行一段源代码。所有 ScriptError 异常会带上 source_path 后抛出。"""
+def run_source(source: str, interpreter: Interpreter = None,
+               source_path: str = None, current_dir: str = None,
+               script_args=None):
+    """
+    运行一段源代码，所有 ScriptError 异常会带上 source_path 后抛出。
+    返回 (interpreter, last_value, had_value) 三元组。
+    """
     if interpreter is None:
-        interpreter = Interpreter()
+        interpreter = Interpreter(script_args=script_args,
+                                  current_dir=current_dir)
+    if current_dir is not None:
+        interpreter.current_dir = current_dir
     try:
-        tokens = Lexer(source).tokenize()
-        program = Parser(tokens).parse()
-        interpreter.interpret(program)
+        tokens = Lexer(source, source_path=source_path).tokenize()
+        program = Parser(tokens, source_path=source_path).parse()
+        last_value, had_value = interpreter.interpret(program)
     except ScriptError as e:
         if source_path and e.source_path is None:
             e.source_path = source_path
         raise
-    return interpreter
+    return interpreter, last_value, had_value
 
 
 def _print_error(err: ScriptError):
@@ -30,7 +38,7 @@ def _print_error(err: ScriptError):
     print(err.format_error(), file=sys.stderr)
 
 
-def run_file(path: str) -> int:
+def run_file(path: str, script_args=None) -> int:
     """执行一个脚本文件，发生错误只打印脚本错误信息，返回非零退出码。"""
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -41,8 +49,13 @@ def run_file(path: str) -> int:
     except OSError as e:
         print(f"错误: 无法读取文件: {e}", file=sys.stderr)
         return 1
+    abs_path = os.path.abspath(path)
+    current_dir = os.path.dirname(abs_path)
     try:
-        run_source(source, source_path=path)
+        run_source(source,
+                   source_path=abs_path,
+                   current_dir=current_dir,
+                   script_args=script_args)
         return 0
     except ScriptError as e:
         _print_error(e)
@@ -52,7 +65,7 @@ def run_file(path: str) -> int:
 def run_repl():
     """
     交互式 REPL:
-      - 单行表达式自动回显结果值
+      - 单行表达式自动回显结果值（只执行一次，不重复执行有副作用的操作）
       - 多行结构 (fn / if / while / for / { ... }) 会持续收集输入
         直到语法结构完整、括号配对后才执行
       - 所有错误只显示脚本错误格式, 不影响下一条输入
@@ -92,28 +105,10 @@ def run_repl():
                 continue
 
             try:
-                # 判断最后一条语句是否是表达式语句 → 自动回显值
-                last_expr_val = None
-                last_is_expr = False
-                if program.statements:
-                    last_stmt = program.statements[-1]
-                    if isinstance(last_stmt, ExpressionStatement):
-                        last_is_expr = True
-
-                interpreter.interpret(program)
-
-                if last_is_expr:
-                    # 单独对最后一个表达式求值以回显 (副作用会再次执行, 可接受)
-                    try:
-                        tokens2 = Lexer(buf).tokenize()
-                        prog2 = Parser(tokens2).parse()
-                        if prog2.statements:
-                            ls = prog2.statements[-1]
-                            if isinstance(ls, ExpressionStatement):
-                                val = interpreter._evaluate(ls.expression)
-                                print(interpreter._stringify(val))
-                    except Exception:
-                        pass
+                # interpret() 执行所有语句, 返回最后一条表达式语句的值
+                last_value, had_value = interpreter.interpret(program)
+                if had_value:
+                    print(interpreter._stringify(last_value))
             except ScriptError as e:
                 _print_error(e)
             buf = ""
@@ -144,7 +139,6 @@ def _is_complete(src: str) -> bool:
             stack.append(ch)
         elif ch in close_map:
             if not stack or stack[-1] != close_map[ch]:
-                # 不匹配就认为无效, 返回 True 让解析器报错
                 return True
             stack.pop()
         i += 1
@@ -154,12 +148,13 @@ def _is_complete(src: str) -> bool:
 
 
 def _looks_definitely_incomplete(src: str) -> bool:
-    """启发式: 如果结尾是开启符号/逗号/反斜杠, 就继续收集。"""
+    """启发式: 如果结尾是开启符号/逗号/反斜杠/运算符, 就继续收集。"""
     stripped = src.rstrip()
     if not stripped:
         return False
     ends = stripped[-1]
-    return ends in ('{', '(', '[', ',', '\\') or ends in ('+', '-', '*', '/', '%', '=', '<', '>', '!')
+    return ends in ('{', '(', '[', ',', '\\') \
+        or ends in ('+', '-', '*', '/', '%', '=', '<', '>', '!')
 
 
 BANNER = r"""
@@ -171,26 +166,30 @@ BANNER = r"""
   \_____|_|\___/ \___/|___/\__|\__,_|_|    |______\__,_|_| |_|\__, |
                                                                __/ |
                                                               |___/ 
-  支持 词法作用域 · 闭包捕获 · 环境逃逸 · Pratt 解析 · 数组 · 字典
-  用法: python main.py <script.scl>      # 执行脚本
-        python main.py                   # 进入 REPL
+  支持 词法作用域 · 闭包捕获 · 环境逃逸 · Pratt 解析 · 数组 · 字典 · 模块
+  用法: python main.py <script.scl> [args...]    # 执行脚本(可跟参数)
+        python main.py                           # 进入 REPL
+        python main.py --help                    # 查看帮助
+  脚本参数通过全局变量 ARGS (数组) 访问。
 """
 
 
 def main():
-    if len(sys.argv) > 2:
-        print("用法: python main.py [script.scl]")
-        sys.exit(64)
-    if len(sys.argv) == 2:
-        path = sys.argv[1]
-        if path == "--help" or path == "-h":
-            print(BANNER)
-            sys.exit(0)
-        code = run_file(path)
-        sys.exit(code)
-    else:
+    argv = sys.argv[1:]
+    if not argv:
         print(BANNER)
         run_repl()
+        return
+
+    if argv[0] in ("--help", "-h"):
+        print(BANNER)
+        sys.exit(0)
+
+    # python main.py script.scl arg1 arg2 ...
+    script_path = argv[0]
+    script_args = argv[1:]
+    code = run_file(script_path, script_args=script_args)
+    sys.exit(code)
 
 
 if __name__ == "__main__":

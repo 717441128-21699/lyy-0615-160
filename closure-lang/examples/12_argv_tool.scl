@@ -1,0 +1,43 @@
+// ============================================================
+// 12_argv_tool.scl —— 命令行参数示例
+//   用法: python main.py 12_argv_tool.scl 张三 李四 王五
+//
+// ClosureLang 通过全局变量 ARGS (数组) 读取命令行参数。
+// ARGS[0] 是第一个脚本外参数 (脚本名本身不算)。
+// ============================================================
+
+print "=== ClosureLang ARGS 示例 ===";
+print "参数个数: " + to_str(len(ARGS));
+print "全部参数: " + to_str(ARGS);
+print "";
+
+// --- 场景 1: 没有参数时提示用法 ---
+if (len(ARGS) == 0) {
+    print "用法: python main.py 12_argv_tool.scl <name1> [name2 ...]";
+    print "示例: python main.py 12_argv_tool.scl 张三 李四";
+    return nil;
+}
+
+// --- 场景 2: 如果只有一个参数是文件名, 就当 「列出文件行数」 模拟 ---
+// (这里不做真实 IO, 只演示参数读取)
+if (len(ARGS) == 1) {
+    let filename = ARGS[0];
+    print "[模式 A] 处理单个文件名:";
+    print "  文件名: " + filename;
+    print "  假设行数: " + to_str(len(filename) * 7);   // 假装有这个行数
+    print "  (真实 IO 可以在后续扩展中加入)";
+}
+
+// --- 场景 3: 多个参数 -> 名字列表, 打印问候 ---
+print "[模式 B] 批量问候:";
+let i = 0;
+let total_len = 0;
+while (i < len(ARGS)) {
+    let name = ARGS[i];
+    print "  你好, " + name + "! 你的名字有 " + to_str(len(name)) + " 个字符。";
+    total_len = total_len + len(name);
+    i = i + 1;
+}
+print "";
+print "总名字字符数: " + to_str(total_len);
+print "平均每个名字 " + to_str(total_len / len(ARGS)) + " 个字符";

@@ -1,0 +1,39 @@
+// ============================================================
+// 13_import_demo.scl —— 模块导入示例
+//   用法: python main.py 13_import_demo.scl
+//
+// 演示:
+//   1) import 相对路径加载 lib_str.scl
+//   2) 调用里面的字符串/数组工具函数
+//   3) 重复 import 同一个文件 -> 只执行一次 (去重)
+// ============================================================
+
+// --- 1) 导入模块 (相对路径: 相对于本文件所在目录) ---
+import "lib_str.scl";
+
+print_banner("ClosureLang 模块导入演示");
+print "";
+
+// --- 2) 调用 lib_str 里的函数 (都在当前作用域 ---
+print "[字符串工具]";
+print "  str_repeat('=', 10 = " + str_repeat("=", 10);
+print "  str_pad('abc', 8) = '" + str_pad("abc", 8) + "'";
+print "  str_contains('hello world', 'world') = " + to_str(str_contains("hello world", "world"));
+print "  str_contains('hello world', 'xyz') = " + to_str(str_contains("hello world", "xyz"));
+print "";
+
+let nums = [3, 1, 4, 1, 5, 9, 2, 6];
+print "[数组工具]";
+print "  nums = " + to_str(nums);
+print "  array_sum = " + to_str(array_sum(nums));
+print "  array_avg = " + to_str(array_avg(nums));
+print "  array_join(nums, ', ') = " + array_join(nums, ", ");
+print "";
+
+// --- 3) 再次 import 同一个文件 -> 应该没有 "已加载" 再输出, 且值仍然可用
+print "[重复 import 测试 (应该看不到第二行 '模块已加载')]";
+import "lib_str.scl";
+print "  _lib_str_loaded 仍然可用: " + to_str(_lib_str_loaded);
+print "  str_repeat 仍然可用: " + str_repeat("*", 6);
+print "";
+print "结论: 同一个模块多次 import 只执行一次, 函数/变量仍然可复用, 符合预期。";

@@ -170,3 +170,10 @@ class Subscript(Node):
         self.obj = obj
         self.index = index
         self.token = token
+
+
+class ImportStatement(Node):
+    """模块导入: import "path/to/file.scl" """
+    def __init__(self, path, token):
+        self.path = path    # 字符串
+        self.token = token

@@ -1,13 +1,15 @@
 import sys
+import os
 from ast_nodes import (
     Program, NumberLiteral, StringLiteral, BooleanLiteral, NilLiteral,
     Identifier, Assignment, VariableDeclaration, FunctionDeclaration,
     Lambda, Call, Block, IfStatement, WhileStatement, ForStatement,
     ReturnStatement, PrintStatement, BinaryOp, UnaryOp, LogicalOp,
     ExpressionStatement, ArrayLiteral, DictLiteral, Subscript,
+    ImportStatement,
 )
 from environment import Environment, ReturnException, UNDEFINED
-from errors import RuntimeError
+from errors import RuntimeError, ScriptError
 
 
 class Closure:
@@ -65,11 +67,16 @@ class NativeFunction:
 # 解释器主体
 # ------------------------------------------------------------
 class Interpreter:
-    def __init__(self, output=None):
+    def __init__(self, output=None, script_args=None, current_dir=None):
         self.output = output if output is not None else sys.stdout
         self.globals = Environment(name="<global>")
         self._install_natives()
         self.environment = self.globals
+        self._import_cache = set()              # 已导入文件的绝对路径集合
+        self.current_dir = current_dir or os.getcwd()
+        # 命令行参数
+        args = list(script_args) if script_args else []
+        self.globals.define("ARGS", args)
 
     # ---------- 内置函数 ----------
     def _install_natives(self):
@@ -169,17 +176,30 @@ class Interpreter:
 
     # ---------- 入口 ----------
     def interpret(self, program: Program):
+        """
+        执行整个程序, 返回 tuple: (last_value, had_value)
+        - last_value: 最后一条 ExpressionStatement 的求值结果
+        - had_value: 是否存在可回显的最后表达式 (用于 REPL)
+        """
+        last_value = None
+        had_value = False
         try:
             for stmt in program.statements:
-                self._execute(stmt)
+                r = self._execute(stmt)
+                if isinstance(stmt, ExpressionStatement):
+                    last_value = r
+                    had_value = True
+                else:
+                    had_value = False
         except ReturnException as e:
             # 顶层 return 视为非法
             raise RuntimeError.from_node("顶层不能使用 return", program) from None
-        except RuntimeError:
+        except ScriptError:
             raise
         except Exception as e:
             # 把任何其他 Python 异常包成运行时错误 (0:0 位置)
             raise RuntimeError(str(e)) from None
+        return last_value, had_value
 
     # ---------- 执行语句 ----------
     def _execute(self, stmt):
@@ -255,6 +275,45 @@ class Interpreter:
         value = self._evaluate(stmt.value)
         self.output.write(self._stringify(value) + "\n")
         self.output.flush()
+
+    def _exec_ImportStatement(self, stmt):
+        """执行 import 语句。在 caller 的当前环境中执行被导入文件的内容。"""
+        from lexer import Lexer
+        from parser import Parser
+
+        raw_path = stmt.path
+        # 相对路径解析：相对于当前文件所在目录
+        if not os.path.isabs(raw_path):
+            abs_path = os.path.abspath(os.path.join(self.current_dir, raw_path))
+        else:
+            abs_path = os.path.abspath(raw_path)
+
+        # 已导入则跳过 (避免重复执行)
+        if abs_path in self._import_cache:
+            return
+        self._import_cache.add(abs_path)
+
+        if not os.path.isfile(abs_path):
+            raise RuntimeError.from_node(f"导入文件不存在: {raw_path}", stmt)
+
+        try:
+            with open(abs_path, 'r', encoding='utf-8') as f:
+                source = f.read()
+        except OSError as e:
+            raise RuntimeError.from_node(f"无法读取模块文件 {raw_path}: {e}", stmt) from None
+
+        # 在导入的上下文中, 当前目录要切到该文件所在目录, 支持嵌套相对导入
+        prev_dir = self.current_dir
+        self.current_dir = os.path.dirname(abs_path)
+        try:
+            tokens = Lexer(source, source_path=abs_path).tokenize()
+            program = Parser(tokens).parse()
+            for s in program.statements:
+                self._execute(s)
+        except ReturnException as e:
+            raise RuntimeError(f"模块顶层不能使用 return: {raw_path}") from None
+        finally:
+            self.current_dir = prev_dir
 
     # ---------- 表达式求值 ----------
     def _evaluate(self, expr):

@@ -1,0 +1,87 @@
+// ============================================================
+// lib_str.scl —— 通用字符串工具库 (被 import 的模块)
+//
+// 模块顶层的 let/fn 定义会被写到调用方当前作用域里,
+// 效果与直接把这些代码粘贴到 import 语句的位置一模一样。
+//
+// 注意:
+//   1) ClosureLang 用 _import_cache 做绝对路径去重,
+//      同一个文件即使被多个模块反复 import, 也只会执行一次。
+//   2) 相对路径: 相对于 当前 import 语句所在文件 的目录。
+// ============================================================
+
+// --- 字符串工具 ---
+fn str_repeat(s, n) {
+    let out = "";
+    let i = 0;
+    while (i < n) {
+        out = out + s;
+        i = i + 1;
+    }
+    return out;
+}
+
+fn str_pad(s, width) {
+    if (len(s) >= width) { return s; }
+    return s + str_repeat(" ", width - len(s));
+}
+
+fn str_contains(haystack, needle) {
+    if (len(needle) == 0) { return true; }
+    let n = len(haystack);
+    let m = len(needle);
+    if (m > n) { return false; }
+    let i = 0;
+    while (i <= n - m) {
+        let j = 0;
+        let match = true;
+        while (j < m and match) {
+            if (haystack[i + j] != needle[j]) {
+                match = false;
+            }
+            j = j + 1;
+        }
+        if (match) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// --- 数组工具 ---
+fn array_sum(arr) {
+    let s = 0;
+    let i = 0;
+    while (i < len(arr)) {
+        s = s + arr[i];
+        i = i + 1;
+    }
+    return s;
+}
+
+fn array_avg(arr) {
+    if (len(arr) == 0) { return 0; }
+    return array_sum(arr) / len(arr);
+}
+
+fn array_join(arr, sep) {
+    if (len(arr) == 0) { return ""; }
+    let out = to_str(arr[0]);
+    let i = 1;
+    while (i < len(arr)) {
+        out = out + sep + to_str(arr[i]);
+        i = i + 1;
+    }
+    return out;
+}
+
+// --- 格式化工具 ---
+fn print_banner(text) {
+    let line = str_repeat("=", len(text) + 4);
+    print line;
+    print "  " + text;
+    print line;
+}
+
+// 模块加载标记 (用于验证去重: 这个变量只会被定义一次)
+let _lib_str_loaded = true;
+print "[lib_str.scl] 模块已加载 (如果多次 import 只会看到这一行一次)";

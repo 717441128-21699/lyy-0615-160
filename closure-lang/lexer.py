@@ -3,8 +3,9 @@ from errors import LexerError
 
 
 class Lexer:
-    def __init__(self, source: str):
+    def __init__(self, source: str, source_path=None):
         self.source = source
+        self.source_path = source_path
         self.pos = 0
         self.line = 1
         self.column = 1
@@ -116,81 +117,85 @@ class Lexer:
         self.tokens.append(Token(type, value, self.line, col))
 
     def tokenize(self) -> list:
-        while self.pos < len(self.source):
-            self.skip_whitespace_and_comments()
-            if self.pos >= len(self.source):
-                break
+        try:
+            while self.pos < len(self.source):
+                self.skip_whitespace_and_comments()
+                if self.pos >= len(self.source):
+                    break
 
-            start_col = self.column
-            ch = self.peek()
+                start_col = self.column
+                ch = self.peek()
 
-            if ch.isdigit():
-                self.tokens.append(self.read_number())
-                continue
-            if ch == '"' or ch == "'":
-                self.tokens.append(self.read_string())
-                continue
-            if ch.isalpha() or ch == '_':
-                self.tokens.append(self.read_identifier())
-                continue
+                if ch.isdigit():
+                    self.tokens.append(self.read_number())
+                    continue
+                if ch == '"' or ch == "'":
+                    self.tokens.append(self.read_string())
+                    continue
+                if ch.isalpha() or ch == '_':
+                    self.tokens.append(self.read_identifier())
+                    continue
 
-            # 单/双字符符号
-            if ch == '(':
-                self.advance(); self.add_token(TokenType.LEFT_PAREN, column=start_col)
-            elif ch == ')':
-                self.advance(); self.add_token(TokenType.RIGHT_PAREN, column=start_col)
-            elif ch == '{':
-                self.advance(); self.add_token(TokenType.LEFT_BRACE, column=start_col)
-            elif ch == '}':
-                self.advance(); self.add_token(TokenType.RIGHT_BRACE, column=start_col)
-            elif ch == '[':
-                self.advance(); self.add_token(TokenType.LEFT_BRACKET, column=start_col)
-            elif ch == ']':
-                self.advance(); self.add_token(TokenType.RIGHT_BRACKET, column=start_col)
-            elif ch == ',':
-                self.advance(); self.add_token(TokenType.COMMA, column=start_col)
-            elif ch == '.':
-                self.advance(); self.add_token(TokenType.DOT, column=start_col)
-            elif ch == ';':
-                self.advance(); self.add_token(TokenType.SEMICOLON, column=start_col)
-            elif ch == ':':
-                self.advance(); self.add_token(TokenType.COLON, column=start_col)
-            elif ch == '+':
-                self.advance(); self.add_token(TokenType.PLUS, column=start_col)
-            elif ch == '-':
-                self.advance(); self.add_token(TokenType.MINUS, column=start_col)
-            elif ch == '*':
-                self.advance(); self.add_token(TokenType.STAR, column=start_col)
-            elif ch == '/':
-                self.advance(); self.add_token(TokenType.SLASH, column=start_col)
-            elif ch == '%':
-                self.advance(); self.add_token(TokenType.PERCENT, column=start_col)
-            elif ch == '=':
-                self.advance()
-                if self.match('='):
-                    self.add_token(TokenType.EQUAL, column=start_col)
+                # 单/双字符符号
+                if ch == '(':
+                    self.advance(); self.add_token(TokenType.LEFT_PAREN, column=start_col)
+                elif ch == ')':
+                    self.advance(); self.add_token(TokenType.RIGHT_PAREN, column=start_col)
+                elif ch == '{':
+                    self.advance(); self.add_token(TokenType.LEFT_BRACE, column=start_col)
+                elif ch == '}':
+                    self.advance(); self.add_token(TokenType.RIGHT_BRACE, column=start_col)
+                elif ch == '[':
+                    self.advance(); self.add_token(TokenType.LEFT_BRACKET, column=start_col)
+                elif ch == ']':
+                    self.advance(); self.add_token(TokenType.RIGHT_BRACKET, column=start_col)
+                elif ch == ',':
+                    self.advance(); self.add_token(TokenType.COMMA, column=start_col)
+                elif ch == '.':
+                    self.advance(); self.add_token(TokenType.DOT, column=start_col)
+                elif ch == ';':
+                    self.advance(); self.add_token(TokenType.SEMICOLON, column=start_col)
+                elif ch == ':':
+                    self.advance(); self.add_token(TokenType.COLON, column=start_col)
+                elif ch == '+':
+                    self.advance(); self.add_token(TokenType.PLUS, column=start_col)
+                elif ch == '-':
+                    self.advance(); self.add_token(TokenType.MINUS, column=start_col)
+                elif ch == '*':
+                    self.advance(); self.add_token(TokenType.STAR, column=start_col)
+                elif ch == '/':
+                    self.advance(); self.add_token(TokenType.SLASH, column=start_col)
+                elif ch == '%':
+                    self.advance(); self.add_token(TokenType.PERCENT, column=start_col)
+                elif ch == '=':
+                    self.advance()
+                    if self.match('='):
+                        self.add_token(TokenType.EQUAL, column=start_col)
+                    else:
+                        self.add_token(TokenType.ASSIGN, column=start_col)
+                elif ch == '!':
+                    self.advance()
+                    if self.match('='):
+                        self.add_token(TokenType.NOT_EQUAL, column=start_col)
+                    else:
+                        self.add_token(TokenType.NOT, column=start_col)
+                elif ch == '<':
+                    self.advance()
+                    if self.match('='):
+                        self.add_token(TokenType.LESS_EQUAL, column=start_col)
+                    else:
+                        self.add_token(TokenType.LESS, column=start_col)
+                elif ch == '>':
+                    self.advance()
+                    if self.match('='):
+                        self.add_token(TokenType.GREATER_EQUAL, column=start_col)
+                    else:
+                        self.add_token(TokenType.GREATER, column=start_col)
                 else:
-                    self.add_token(TokenType.ASSIGN, column=start_col)
-            elif ch == '!':
-                self.advance()
-                if self.match('='):
-                    self.add_token(TokenType.NOT_EQUAL, column=start_col)
-                else:
-                    self.add_token(TokenType.NOT, column=start_col)
-            elif ch == '<':
-                self.advance()
-                if self.match('='):
-                    self.add_token(TokenType.LESS_EQUAL, column=start_col)
-                else:
-                    self.add_token(TokenType.LESS, column=start_col)
-            elif ch == '>':
-                self.advance()
-                if self.match('='):
-                    self.add_token(TokenType.GREATER_EQUAL, column=start_col)
-                else:
-                    self.add_token(TokenType.GREATER, column=start_col)
-            else:
-                raise LexerError(f"未知字符: {ch!r}", self.line, start_col)
+                    raise LexerError(f"未知字符: {ch!r}", self.line, start_col)
 
-        self.tokens.append(Token(TokenType.EOF, None, self.line, self.column))
-        return self.tokens
+            self.tokens.append(Token(TokenType.EOF, None, self.line, self.column))
+            return self.tokens
+        except LexerError as e:
+            e.source_path = self.source_path
+            raise

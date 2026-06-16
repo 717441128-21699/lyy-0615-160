@@ -6,6 +6,7 @@ from ast_nodes import (
     Lambda, Call, Block, IfStatement, WhileStatement, ForStatement,
     ReturnStatement, PrintStatement, BinaryOp, UnaryOp, LogicalOp,
     ExpressionStatement, ArrayLiteral, DictLiteral, Subscript,
+    ImportStatement,
 )
 
 
@@ -24,9 +25,10 @@ PRECEDENCE = {
 
 
 class Parser:
-    def __init__(self, tokens: list):
+    def __init__(self, tokens: list, source_path=None):
         self.tokens = tokens
         self.pos = 0
+        self.source_path = source_path
 
     # ---------- 辅助方法 ----------
     def peek(self, offset: int = 0) -> Token:
@@ -60,18 +62,24 @@ class Parser:
 
     # ---------- 入口 ----------
     def parse(self) -> Program:
-        stmts = []
-        first_token = self.peek()
-        while not self.check(TokenType.EOF):
-            stmt = self.parse_declaration()
-            if stmt is not None:
-                stmts.append(stmt)
-        return Program(stmts, token=first_token)
+        try:
+            stmts = []
+            first_token = self.peek()
+            while not self.check(TokenType.EOF):
+                stmt = self.parse_declaration()
+                if stmt is not None:
+                    stmts.append(stmt)
+            return Program(stmts, token=first_token)
+        except ParseError as e:
+            e.source_path = self.source_path
+            raise
 
     # ---------- 声明 (最高层级) ----------
     def parse_declaration(self):
         # 前瞻: 'fn' 可能是具名函数声明, 也可能是匿名函数表达式 (IIFE)
         # 如果 FN 之后是 IDENTIFIER → 函数声明；否则 → 表达式语句
+        if self.check(TokenType.IMPORT):
+            return self.parse_import_statement()
         if self.check(TokenType.FN) and self.peek(1).type == TokenType.IDENTIFIER:
             return self.parse_function_declaration()
         if self.check(TokenType.LET):
@@ -176,6 +184,12 @@ class Parser:
         value = self.parse_expression()
         self.expect_semicolon()
         return PrintStatement(value, token=start)
+
+    def parse_import_statement(self):
+        start = self.consume(TokenType.IMPORT, "期望 'import' 关键字")
+        path_tok = self.consume(TokenType.STRING, "期望模块路径字符串")
+        self.expect_semicolon()
+        return ImportStatement(path_tok.value, token=start)
 
     def parse_block_statement(self):
         start = self.consume(TokenType.LEFT_BRACE, "期望 '{'")
