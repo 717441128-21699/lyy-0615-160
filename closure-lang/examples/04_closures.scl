@@ -1,0 +1,108 @@
+// ============================================================
+// 04_closures.scl —— 闭包核心演示: 捕获外层变量, 环境逃逸
+//
+// 关键思想:
+//   当外层函数返回后, 它的局部作用域本应 "销毁", 但因为返回的闭包
+//   仍然持有那个环境的引用 (closure_env), 所以整个环境链保持存活。
+//   这就是 "环境逃逸 (environment escape)"。
+// ============================================================
+
+print "--- 经典计数器: 闭包捕获并持久修改外层变量 ---";
+
+fn make_counter() {
+    let count = 0;           // 被 "关" 在闭包里的自由变量
+    return fn () {           // 返回一个闭包: 它捕获了 make_counter 的活动环境
+        count = count + 1;
+        return count;
+    };
+}
+
+let c = make_counter();
+// 此刻 make_counter 已经返回, 其调用帧从栈上消失, 但它的 Environment
+// 因为被闭包 c 的 closure_env 引用着, 所以依然存活, count 值保持为 0。
+print "c() = " + c();   // 1  — 沿 closure_env 链找到 count, 加 1
+print "c() = " + c();   // 2  — 同一个环境中的 count 继续累加
+print "c() = " + c();   // 3
+
+// 每个 make_counter() 调用会创建 **独立的** Environment, 因此两个计数器互不干扰:
+let d = make_counter();
+print "";
+print "--- 两个独立计数器 ---";
+print "c() = " + c();   // 4 (继续自己的累加)
+print "d() = " + d();   // 1 (从新环境开始)
+print "d() = " + d();   // 2
+print "c() = " + c();   // 5
+
+// ------------------------------------------------------------
+print "";
+print "--- 工厂函数: 为每个值创建独立闭包 (环境逃逸的关键用例) ---";
+
+fn make_greeter(prefix) {
+    // prefix 是 make_greeter 的参数, 返回的闭包会捕获它
+    return fn (name) {
+        return prefix + ", " + name + "!";
+    };
+}
+
+let hello     = make_greeter("Hello");
+let goodbye   = make_greeter("Goodbye");
+let namaste   = make_greeter("Namaste");
+
+// make_greeter 已经返回了三次, 三次调用的 prefix 本应消失;
+// 但因为 hello / goodbye / namaste 三个闭包分别持有三次调用的环境,
+// 所以三个 prefix 都活着。
+print hello("Alice");
+print goodbye("Bob");
+print namaste("Charlie");
+print hello("Dave");      // 依然能读出 "Hello" 这个捕获的值
+
+// ------------------------------------------------------------
+print "";
+print "--- 闭包可修改捕获的变量 (引用捕获而非值捕获) ---";
+
+// 用返回一个单一闭包模拟 "对象" (通过字符串消息名分派)
+fn make_bank(balance) {
+    return fn (action, amount) {
+        if (action == "deposit") {
+            balance = balance + amount;
+            return balance;
+        }
+        if (action == "withdraw") {
+            if (amount > balance) {
+                return "余额不足";
+            }
+            balance = balance - amount;
+            return balance;
+        }
+        if (action == "check") {
+            return balance;
+        }
+        return nil;
+    };
+}
+
+let acc = make_bank(100);
+print "初始余额: " + acc("check", 0);
+print "存 50 后: " + acc("deposit", 50);
+print "取 30 后: " + acc("withdraw", 30);
+print "取 200:   " + acc("withdraw", 200);
+print "当前余额: " + acc("check", 0);
+
+// ------------------------------------------------------------
+print "";
+print "--- 词法作用域 vs 动态作用域: 闭包记住的是 「定义位置」 ---";
+
+let global = "outer";
+
+fn f1() {
+    let global = "inner";     // 遮蔽外层 global
+    return fn () {
+        return global;        // 引用 f1 作用域里的 global, 而非调用点的
+    };
+}
+
+let global = "reassigned-outer";  // 顶层再赋值 (遮蔽不了 f1 内部的)
+
+let closure = f1();
+// 即使从最外层调用, 闭包仍读取 f1 内部定义的 "inner":
+print "闭包返回: " + closure();    // inner  (词法作用域: 看 f1 的环境链)

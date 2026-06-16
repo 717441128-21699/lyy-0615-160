@@ -1,0 +1,81 @@
+// ============================================================
+// 05_closure_trap.scl —— 循环闭包陷阱 (Classic Closure Trap)
+//
+// 本语言 **如实地暴露这个经典问题**, 原因是:
+//   - 闭包按 **引用** 捕获环境 (Environment.values 是 dict, 存的是值引用)
+//   - for / while 循环体 **不** 为每一次迭代创建新的作用域
+//   - 因此所有在循环体中创建的闭包都共享同一个循环作用域的同一个变量 cell
+// ============================================================
+
+print "=== 陷阱 1: for 循环中创建的多个闭包看到同一个 i ===";
+print "";
+
+// ClosureLang 没有数组, 我们用一组具名变量分别保存每轮迭代创建的闭包
+
+let f0 = nil;
+let f1 = nil;
+let f2 = nil;
+
+for (let i = 0; i < 3; i = i + 1) {
+    // 每一轮迭代都创建一个匿名闭包, 捕获当前循环作用域中的 i
+    let current_closure = fn () {
+        return i;          // 引用捕获: 捕获的是 "i 这个 cell", 不是 "i 的值"
+    };
+
+    // 把当前迭代的闭包分别存入三个变量
+    if (i == 0)      f0 = current_closure;
+    else if (i == 1) f1 = current_closure;
+    else             f2 = current_closure;
+}
+
+// 此时循环已结束, 同一个循环作用域中的 i 已经变成 3
+// 因为三个闭包共享同一个环境 / 同一个 i cell, 调用它们时都读到 i == 3:
+
+print "期望大多数初学者的直觉: 0, 1, 2";
+print "实际由于共享循环变量引用, 全部返回: ";
+print "  f0() = " + f0();     // 3  — 经典陷阱!
+print "  f1() = " + f1();     // 3
+print "  f2() = " + f2();     // 3
+
+print "";
+print "原因: 三个闭包共享同一个 for 作用域里的同一个 i cell。";
+print "      循环结束后 i 的最终值是 3, 所以所有闭包都看到 3。";
+
+// ------------------------------------------------------------
+print "";
+print "=== 陷阱 2: while 循环中同样存在 ===";
+print "";
+
+let g0 = nil;
+let g1 = nil;
+let j = 0;
+while (j < 2) {
+    let c = fn () { return j; };
+    if (j == 0) g0 = c;
+    else         g1 = c;
+    j = j + 1;
+}
+
+print "  g0() = " + g0();     // 2 — 共享同一个 j (顶层作用域)
+print "  g1() = " + g1();     // 2
+
+// ------------------------------------------------------------
+print "";
+print "=== 陷阱 3: 闭包可以事后修改共享变量, 影响其他闭包 ===";
+print "";
+
+let setter = nil;
+let getter = nil;
+
+for (let k = 10; k <= 10; k = k + 1) {
+    setter = fn (v) { k = v; };
+    getter = fn ()    { return k; };
+}
+
+print "getter() 初始 = " + getter();   // 10
+setter(999);
+print "setter(999) 后 getter() = " + getter();  // 999 — setter 修改的是同一个 k
+
+print "";
+print "这就是引用捕获的真实语义, 不是 bug, 是 feature ——";
+print "理解它才能正确使用闭包。下一个脚本演示规避方式。";

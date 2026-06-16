@@ -1,0 +1,57 @@
+// ============================================================
+// 01_basics.scl —— 变量、算术、字符串、内置函数
+// ============================================================
+
+print "--- 基础变量与算术 ---";
+
+let a = 10;
+let b = 3;
+print "a = " + a;
+print "b = " + b;
+
+print "a + b = " + (a + b);
+print "a - b = " + (a - b);
+print "a * b = " + (a * b);
+print "a / b = " + (a / b);
+print "a % b = " + (a % b);
+
+let x = 5;
+x = x + 2;          // 赋值: x 变成 7
+print "x (after x=x+2) = " + x;
+
+// 复合运算
+let y = (1 + 2) * 3 - 4 / 2;    // 9 - 2 = 7
+print "(1+2)*3 - 4/2 = " + y;
+
+// 否定与逻辑非
+print "-b = " + (-b);
+print "!true = " + (!true);
+print "!false = " + (!false);
+
+// ------------------------------------------------------------
+print "";
+print "--- 字符串 ---";
+let greeting = "Hello, " + "world!";
+print greeting;
+print "len(greeting) = " + len(greeting);
+print '单引号字符串也能用: 你好 \\n世界';
+
+// ------------------------------------------------------------
+print "";
+print "--- 布尔与比较 ---";
+print "a > b  = " + (a > b);
+print "a == b = " + (a == b);
+print "a != b = " + (a != b);
+print "true and false = " + (true and false);
+print "true or false  = " + (true or false);
+print "nil or 42      = " + (nil or 42);   // 短路求值
+
+// ------------------------------------------------------------
+print "";
+print "--- 内置函数 ---";
+print "type(123)   = " + type(123);
+print "type(\"hi\")  = " + type("hi");
+print "type(true)  = " + type(true);
+print "type(nil)   = " + type(nil);
+print "to_str(42)  = " + to_str(42);
+print "parse_int(\"128\") + 1 = " + (parse_int("128") + 1);

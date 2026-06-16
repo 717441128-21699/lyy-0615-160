@@ -1,0 +1,97 @@
+// ============================================================
+// 06_closure_trap_fixed.scl —— 循环闭包陷阱的规避方法
+//
+// 解决思路: 为每一次迭代创建一个 **新的独立作用域**, 并在该作用域中
+// 把循环变量的值 **拷贝** 到一个新的 let 绑定中。
+// 本语言用 IIFE (立即调用的函数表达式) 或嵌套块 + let 实现。
+// ============================================================
+
+print "=== 方法 1: IIFE 包装 —— 每轮迭代立即执行, 制造独立作用域 ===";
+print "";
+
+let f0 = nil;
+let f1 = nil;
+let f2 = nil;
+
+for (let i = 0; i < 3; i = i + 1) {
+    // 每轮迭代: 创建一个新的 Environment (IIFE 的调用帧),
+    // 将 i 的 **当前值** 传给参数 captured 作为独立绑定,
+    // 然后返回的闭包捕获这个 IIFE 作用域中的 captured (每轮都不同)
+    let wrapped = fn (captured) {
+        return fn () {
+            return captured;
+        };
+    }(i);   // <-- 立即调用, 传入 i 的当前值
+
+    if (i == 0)      f0 = wrapped;
+    else if (i == 1) f1 = wrapped;
+    else             f2 = wrapped;
+}
+
+print "期望: 0, 1, 2";
+print "实际: f0() = " + f0();   // 0 ✓
+print "实际: f1() = " + f1();   // 1 ✓
+print "实际: f2() = " + f2();   // 2 ✓
+
+// ------------------------------------------------------------
+print "";
+print "=== 方法 2: 显式块级 let (也可以, 但需要每轮循环体中再套一层块并 let) ===";
+print "";
+
+// ClosureLang 中 for / while 的每次迭代不自动新建作用域,
+// 但我们可以手动在循环体内套一层 "立即执行块 IIFE":
+
+let g0 = nil;
+let g1 = nil;
+let g2 = nil;
+
+for (let i = 0; i < 3; i = i + 1) {
+    // 用 IIFE 制造新作用域: 传入 i 的当前值
+    fn (val) {
+        // 这里 val 在每一轮都是 **独立的变量 cell**, 属于新的 Environment
+        let closure = fn () { return val; };
+        if (val == 0)      g0 = closure;
+        else if (val == 1) g1 = closure;
+        else               g2 = closure;
+    }(i);
+}
+
+print "期望: 0, 1, 2";
+print "实际: g0() = " + g0();   // 0 ✓
+print "实际: g1() = " + g1();   // 1 ✓
+print "实际: g2() = " + g2();   // 2 ✓
+
+// ------------------------------------------------------------
+print "";
+print "=== 验证: 修复后的闭包各自独立, 修改一个不影响其他 ===";
+print "";
+
+let h0 = nil;
+let h1 = nil;
+
+for (let i = 0; i < 2; i = i + 1) {
+    fn (idx) {
+        let n = 0;
+        let c = fn () {
+            n = n + 1;
+            return "闭包 #" + idx + ": 调用次数 " + n;
+        };
+        if (idx == 0) h0 = c;
+        else          h1 = c;
+    }(i);
+}
+
+print h0();   // 闭包 #0: 调用次数 1
+print h0();   // 闭包 #0: 调用次数 2
+print h1();   // 闭包 #1: 调用次数 1  ← 独立, 不受 #0 影响
+print h0();   // 闭包 #0: 调用次数 3
+print h1();   // 闭包 #1: 调用次数 2
+
+print "";
+print "=== 原理总结 ===";
+print "";
+print "陷阱根源  : 所有闭包共享同一个 Environment.values 字典中的同一个 cell。";
+print "修复思路  : 每次迭代创建一个新的 Environment, 把值复制进去,";
+print "            让闭包分别捕获各自的 Environment 中的独立变量。";
+print "具体手段  : IIFE (立即调用的 lambda) 会在调用时自动新建一个";
+print "            Environment, 从而天然实现 '每次一个独立闭包'。";

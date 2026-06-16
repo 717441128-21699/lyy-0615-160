@@ -1,0 +1,63 @@
+// ============================================================
+// 03_functions.scl —— 函数定义、调用、递归、匿名函数
+// ============================================================
+
+print "--- 函数定义与调用 ---";
+
+fn add(x, y) {
+    return x + y;
+}
+
+print "add(3, 4) = " + add(3, 4);
+
+// ------------------------------------------------------------
+print "";
+print "--- 递归: 斐波那契 ---";
+
+fn fib(n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
+
+// fib(0..9): 0 1 1 2 3 5 8 13 21 34
+let idx = 0;
+while (idx < 10) {
+    print "fib(" + idx + ") = " + fib(idx);
+    idx = idx + 1;
+}
+
+// ------------------------------------------------------------
+print "";
+print "--- 匿名函数 (lambda) ---";
+
+// 立即调用 (IIFE)
+let ans = fn (a, b) {
+    return a * a + b * b;
+}(3, 4);
+print "3^2 + 4^2 = " + ans;
+
+// 函数作为值赋值给变量
+let multiply = fn (a, b) { return a * b; };
+print "multiply(6, 7) = " + multiply(6, 7);
+print "type(multiply) = " + type(multiply);
+
+// ------------------------------------------------------------
+print "";
+print "--- 高阶函数: 作为参数 ---";
+
+fn apply_twice(f, x) {
+    return f(f(x));
+}
+fn double(x) { return x * 2; }
+print "apply_twice(double, 5) = " + apply_twice(double, 5);  // 5 -> 10 -> 20
+
+// ------------------------------------------------------------
+print "";
+print "--- 递归: 阶乘 ---";
+fn factorial(n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+print "factorial(7) = " + factorial(7);   // 5040

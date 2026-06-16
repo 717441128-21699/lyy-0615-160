@@ -1,0 +1,103 @@
+// ============================================================
+// 07_scope_chain.scl —— 作用域链、遮蔽、变量查找路径
+// ============================================================
+
+print "--- 变量查找沿作用域链向上 ---";
+
+let x = "global";
+
+fn level1() {
+    let y = "level1";
+    fn level2() {
+        let z = "level2";
+        fn level3() {
+            // 查找路径: level3 env -> level2 env -> level1 env -> global env
+            return "x=" + x + ", y=" + y + ", z=" + z;
+        }
+        return level3();
+    }
+    return level2();
+}
+print level1();  // x=global, y=level1, z=level2
+
+// ------------------------------------------------------------
+print "";
+print "--- 遮蔽 (Shadowing): 内层变量不影响外层 ---";
+
+let a = 100;
+fn shadow_test() {
+    let a = "遮蔽了外层的 a";
+    return a;
+}
+print "外层 a = " + a;                // 100
+print "函数内 a = " + shadow_test();   // 遮蔽了外层的 a
+print "函数调用后外层 a = " + a;       // 100 (外层没变)
+
+// ------------------------------------------------------------
+print "";
+print "--- 没有 let 的赋值走作用域链 ---";
+
+let outer = "original";
+fn modify() {
+    outer = "modified";   // 不重新 let, 而是沿链向上找已有的 outer
+}
+print "modify() 前: " + outer;   // original
+modify();
+print "modify() 后: " + outer;   // modified  (通过闭包/作用域链修改了外层变量)
+
+// ------------------------------------------------------------
+print "";
+print "--- 嵌套函数多层遮蔽 ---";
+
+let v = "G";  // 全局
+
+fn A() {
+    let v = "A";
+    fn B() {
+        let v = "B";
+        fn C() {
+            // let v = "C";   // 取消注释则返回 C
+            return v;           // 沿链: C(没有) -> B(有) -> 返回 "B"
+        }
+        return C();
+    }
+    return B();
+}
+print "A 中链查找 v = " + A();    // B
+
+// ------------------------------------------------------------
+print "";
+print "--- 闭包 + 作用域链综合: 通过子闭包修改祖父环境变量 ---";
+
+fn make_env() {
+    let shared = 0;
+
+    fn increment() {
+        shared = shared + 1;
+        return shared;
+    }
+
+    fn decrement() {
+        shared = shared - 1;
+        return shared;
+    }
+
+    fn get() {
+        return shared;
+    }
+
+    // 返回一个派发闭包 (简易对象)
+    return fn (msg) {
+        if (msg == "inc")   return increment();
+        if (msg == "dec")   return decrement();
+        if (msg == "get")   return get();
+        return nil;
+    };
+}
+
+let obj = make_env();
+print "初始 " + obj("get");         // 0
+obj("inc"); obj("inc"); obj("inc");
+print "三次 inc 后 " + obj("get");  // 3
+obj("dec");
+print "一次 dec 后 " + obj("get");  // 2
